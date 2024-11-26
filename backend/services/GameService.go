@@ -2,62 +2,62 @@ package services
 
 import (
 	"backend/config"
+	"backend/models"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 )
 
-type Game struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	SubjectID   string `json:"subject_id"`
-	Difficulty  int    `json:"difficulty_level"`
-	CreatedAt   string `json:"created_at"`
-}
-
-// FetchGames retrieves a list of games from the Supabase database
-func FetchGames() ([]Game, error) {
+// CreateGame creates a new game in the Supabase database
+func CreateGame(title, description, subjectID string, difficulty int) (models.Game, error) {
 	cfg := config.LoadConfig()
 
 	// Define the Supabase REST API URL for the games table
 	url := fmt.Sprintf("%s/rest/v1/games", cfg.SupabaseURL)
 
-	// Create a new HTTP request
-	req, err := http.NewRequest("GET", url, nil)
+	// Prepare the request body
+	gameData := map[string]interface{}{
+		"title":            title,
+		"description":      description,
+		"subject_id":       subjectID,
+		"difficulty_level": difficulty,
+	}
+	body, err := json.Marshal(gameData)
 	if err != nil {
-		return nil, err
+		return models.Game{}, err
+	}
+
+	// Create a new HTTP request
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		return models.Game{}, err
 	}
 
 	// Add required headers for Supabase API
 	req.Header.Set("apikey", cfg.SupabaseKey)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.SupabaseKey))
+	req.Header.Set("Content-Type", "application/json")
 
 	// Send the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return models.Game{}, err
 	}
 	defer resp.Body.Close()
 
 	// Check for non-200 status codes
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.New("failed to fetch games from Supabase")
+	if resp.StatusCode != http.StatusCreated {
+		return models.Game{}, errors.New("failed to create game in Supabase")
 	}
 
 	// Parse the response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	var createdGame models.Game
+	if err := json.NewDecoder(resp.Body).Decode(&createdGame); err != nil {
+		return models.Game{}, err
 	}
 
-	var games []Game
-	if err := json.Unmarshal(body, &games); err != nil {
-		return nil, err
-	}
-
-	return games, nil
+	return createdGame, nil
 }

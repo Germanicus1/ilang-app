@@ -7,26 +7,31 @@ import (
 	"net/http"
 )
 
-type Game struct {
-	ID          string `json:"id"`
+type CreateGameRequest struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	SubjectID   string `json:"subject_id"`
 	Difficulty  int    `json:"difficulty_level"`
-	CreatedAt   string `json:"created_at"`
 }
 
-// GamesHandler retrieves a list of games from the Supabase database
-func GamesHandler(w http.ResponseWriter, r *http.Request) {
-	// Fetch games from the Supabase service
-	games, err := services.FetchGames()
+// CreateGameHandler creates a new game in the Supabase database
+func CreateGameHandler(w http.ResponseWriter, r *http.Request) {
+	// Parse the request body
+	var req CreateGameRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Call the service to create the game
+	game, err := services.CreateGame(req.Title, req.Description, req.SubjectID, req.Difficulty)
 	if err != nil {
-		log.Println("Error fetching games:", err)
-		http.Error(w, "Failed to fetch games", http.StatusInternalServerError)
+		log.Println("Error creating game:", err)
+		http.Error(w, "Failed to create game", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(games)
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(game)
 }
