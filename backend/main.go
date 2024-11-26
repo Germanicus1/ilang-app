@@ -15,7 +15,7 @@ func main() {
 	log.Printf("Supabase Key: %s\n", cfg.SupabaseKey)
 
 	// Register routes
-	http.HandleFunc("/health", handlers.HealthHandler)
+	// http.HandleFunc("/health", handlers.HealthHandler)
 	// http.HandleFunc("/games", handlers.GamesHandler)         // GET /games
 	http.HandleFunc("/games", handlers.CreateGameHandler)    // POST /games
 

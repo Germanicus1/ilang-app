@@ -5,8 +5,9 @@ import (
 	"backend/models"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 )
 
@@ -39,6 +40,7 @@ func CreateGame(title, description, subjectID string, difficulty int) (models.Ga
 	req.Header.Set("apikey", cfg.SupabaseKey)
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.SupabaseKey))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=representation") // Ensures Supabase returns the created row
 
 	// Send the request
 	client := &http.Client{}
@@ -48,16 +50,35 @@ func CreateGame(title, description, subjectID string, difficulty int) (models.Ga
 	}
 	defer resp.Body.Close()
 
-	// Check for non-200 status codes
+	// Read the response body
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Error reading response body: %v\n", err)
+		return models.Game{}, fmt.Errorf("failed to read Supabase response: %v", err)
+	}
+
+	// Log the raw response for debugging
+	log.Printf("Response Body: %s\n", string(responseBody))
+
+	// Check for non-201 status codes
 	if resp.StatusCode != http.StatusCreated {
-		return models.Game{}, errors.New("failed to create game in Supabase")
+		return models.Game{}, fmt.Errorf("failed to create game in Supabase: %s", string(responseBody))
 	}
 
-	// Parse the response body
-	var createdGame models.Game
-	if err := json.NewDecoder(resp.Body).Decode(&createdGame); err != nil {
-		return models.Game{}, err
+	// Decode the response body into a slice of Game objects
+	var createdGames []models.Game
+	if len(responseBody) > 0 {
+		if err := json.Unmarshal(responseBody, &createdGames); err != nil {
+			log.Printf("Error decoding response body: %v\n", err)
+			return models.Game{}, fmt.Errorf("failed to decode Supabase response: %v", err)
+		}
 	}
 
-	return createdGame, nil
+	// Ensure at least one game is returned
+	if len(createdGames) == 0 {
+		return models.Game{}, fmt.Errorf("no game created, empty response from Supabase")
+	}
+
+	// Return the first game from the array
+	return createdGames[0], nil
 }
