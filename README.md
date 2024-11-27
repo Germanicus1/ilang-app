@@ -94,9 +94,9 @@ Current CRUD operations for `games`:
     }
     ```
 
-  - **DELETE `/games/{id}`**
-    - Deletes a specific game by its ID.
-    - **Response**: NONE
+- **DELETE `/games/{id}`**
+  - Deletes a specific game by its ID.
+  - **Response**: NONE
 
 ---
 
