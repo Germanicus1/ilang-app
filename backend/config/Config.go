@@ -10,6 +10,7 @@ import (
 type Config struct {
     SupabaseURL string
     SupabaseKey string
+    JWTSecret string
 }
 
 func LoadConfig() Config {
@@ -21,5 +22,6 @@ func LoadConfig() Config {
     return Config{
         SupabaseURL: os.Getenv("SUPABASE_URL"),
         SupabaseKey: os.Getenv("SUPABASE_KEY"),
+        JWTSecret: os.Getenv("JWT_SECRET"),
     }
 }
