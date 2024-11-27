@@ -16,8 +16,9 @@ func main() {
 
 	// Register routes
 	// http.HandleFunc("/health", handlers.HealthHandler)
-	// http.HandleFunc("/games", handlers.GamesHandler)         // GET /games
-	http.HandleFunc("/games", handlers.CreateGameHandler)    // POST /games
+	// http.HandleFunc("/games", handlers.GamesHandler)         // GET all games
+	http.HandleFunc("/games", handlers.CreateGameHandler)    // POST a game
+	http.HandleFunc("/games/", handlers.GetGameHandler)      // GET /games/{id}
 
 	// Start the server
 	log.Println("Server running on port 8080...")

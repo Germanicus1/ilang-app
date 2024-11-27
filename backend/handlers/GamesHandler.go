@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 )
 
 type CreateGameRequest struct {
@@ -33,5 +34,26 @@ func CreateGameHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(game)
+}
+
+// GetGameHandler retrieves a single game by its ID from the Supabase database
+func GetGameHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract the game ID from the URL path
+	pathParts := strings.Split(r.URL.Path, "/")
+	if len(pathParts) < 3 {
+		http.Error(w, "Game ID not provided", http.StatusBadRequest)
+		return
+	}
+	gameID := pathParts[2]
+	// Call the service to fetch the game
+	game, err := services.FetchGameByID(gameID)
+	if err != nil {
+		log.Printf("Error fetching game: %v\n", err)
+		http.Error(w, "Failed to fetch game", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(game)
 }

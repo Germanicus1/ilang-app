@@ -5,6 +5,7 @@ import (
 	"backend/models"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -81,4 +82,45 @@ func CreateGame(title, description, subjectID string, difficulty int) (models.Ga
 
 	// Return the first game from the array
 	return createdGames[0], nil
+}
+
+// FetchGameByID retrieves a single game by its ID from the Supabase database
+func FetchGameByID(gameID string) (models.Game, error) {
+	cfg := config.LoadConfig()
+	// Define the Supabase REST API URL for the games table
+	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s", cfg.SupabaseURL, gameID)
+	// Create a new HTTP request
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return models.Game{}, err
+	}
+	// Add required headers for Supabase API
+	req.Header.Set("apikey", cfg.SupabaseKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.SupabaseKey))
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return models.Game{}, err
+	}
+	defer resp.Body.Close()
+	// Check for non-200 status codes
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return models.Game{}, fmt.Errorf("failed to fetch game: %s", string(body))
+	}
+	// Parse the response body
+	var games []models.Game
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return models.Game{}, err
+	}
+	if err := json.Unmarshal(body, &games); err != nil {
+		return models.Game{}, err
+	}
+	// Ensure the game exists
+	if len(games) == 0 {
+		return models.Game{}, errors.New("game not found")
+	}
+	return games[0], nil
 }
