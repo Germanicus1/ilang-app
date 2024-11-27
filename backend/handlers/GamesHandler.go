@@ -15,6 +15,20 @@ type CreateGameRequest struct {
 	Difficulty  int    `json:"difficulty_level"`
 }
 
+// GamesHandler retrieves a list of games from the Supabase database
+func GamesHandler(w http.ResponseWriter, r *http.Request) {
+	// Fetch games from the Supabase service
+	games, err := services.FetchGames()
+	if err != nil {
+		log.Println("Error fetching games:", err)
+		http.Error(w, "Failed to fetch games", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(games)
+}
+
 // CreateGameHandler creates a new game in the Supabase database
 func CreateGameHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse the request body
