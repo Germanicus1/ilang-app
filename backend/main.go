@@ -31,7 +31,18 @@ func main() {
 	})
 
 	// Handle /games/{id}
-	http.HandleFunc("/games/", handlers.GetGameHandler)
+	http.HandleFunc("/games/", func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			handlers.GetGameHandler(w, r) // GET /games/{id}
+		case http.MethodPut:
+			handlers.UpdateGameHandler(w, r) // PUT /games/{id}
+		case http.MethodDelete:
+			handlers.DeleteGameHandler(w, r) // DELETE /games/{id}
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
 
 	// Start the server
 	log.Println("Server running on port 8080...")

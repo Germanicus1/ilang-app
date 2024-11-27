@@ -17,6 +17,18 @@ The iLang backend is a RESTful API designed to support a language-learning platf
 
 ## Endpoints
 
+### Summary of CRUD Endpoints
+Current CRUD operations for `games`:
+
+| **Method** | **Endpoint**        | **Description**         |
+|------------|---------------------|-------------------------|
+| `GET`      | `/games`            | Fetch all games         |
+| `GET`      | `/games/{id}`       | Fetch a game by ID      |
+| `POST`     | `/games`            | Create a new game       |
+| `PUT`      | `/games/{id}`       | Update a game by ID     |
+| `DELETE`   | `/games/{id}`       | Delete a game by ID     |
+
+
 ### Health Check
 - **GET `/health`**
   - Responds with the server's health status.

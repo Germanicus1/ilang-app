@@ -160,3 +160,93 @@ func FetchGameByID(gameID string) (models.Game, error) {
 	}
 	return games[0], nil
 }
+
+// UpdateGameByID updates a game in the Supabase database by its ID
+func UpdateGameByID(gameID string, updateData models.GameRequest) (models.Game, error) {
+	cfg := config.LoadConfig()
+
+	// Define the Supabase REST API URL for the games table
+	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s", cfg.SupabaseURL, gameID)
+
+	// Marshal the update data into JSON
+	body, err := json.Marshal(updateData)
+	if err != nil {
+		return models.Game{}, err
+	}
+
+	// Create a new HTTP request
+	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(body))
+	if err != nil {
+		return models.Game{}, err
+	}
+
+	// Add required headers for Supabase API
+	req.Header.Set("apikey", cfg.SupabaseKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.SupabaseKey))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Prefer", "return=representation") // Ensures Supabase returns the updated row
+
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return models.Game{}, err
+	}
+	defer resp.Body.Close()
+
+	// Check for non-200 status codes
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return models.Game{}, fmt.Errorf("failed to update game: %s", string(body))
+	}
+
+	// Parse the response body
+	var updatedGames []models.Game
+	body, err = io.ReadAll(resp.Body)
+	if err != nil {
+		return models.Game{}, err
+	}
+	if err := json.Unmarshal(body, &updatedGames); err != nil {
+		return models.Game{}, err
+	}
+
+	// Ensure the game exists
+	if len(updatedGames) == 0 {
+		return models.Game{}, errors.New("no game updated, empty response from Supabase")
+	}
+
+	return updatedGames[0], nil
+}
+
+// DeleteGameByID deletes a game by its ID from the Supabase database
+func DeleteGameByID(gameID string) error {
+	cfg := config.LoadConfig()
+
+	// Define the Supabase REST API URL for the games table
+	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s", cfg.SupabaseURL, gameID)
+
+	// Create a new HTTP request
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	// Add required headers for Supabase API
+	req.Header.Set("apikey", cfg.SupabaseKey)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.SupabaseKey))
+
+	// Send the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check for non-200 status codes
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("failed to delete game, status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
