@@ -1,44 +1,66 @@
 package middleware
 
 import (
+	"backend/config"
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt/v4"
 )
 
-var jwtSecret = []byte("your-supabase-jwt-secret")
+var cfg = config.LoadConfig()
+var jwtSecret = cfg.JWTSecret
 
 type UserClaims struct {
-	UserID string `json:"sub"`
-	Role   string `json:"role"`
+	Sub       string   `json:"sub"`       // User ID
+	Role      []string `json:"Role"`      // Array of roles
+	GivenName string   `json:"GivenName"` // First name
+	Surname   string   `json:"Surname"`   // Last name
+	Email     string   `json:"Email"`     // User email
 	jwt.StandardClaims
 }
 
+
+// AuthMiddleware validates the JWT and injects user claims into the request context
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// Extract and validate token (same logic as before)
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 			http.Error(w, "Missing or invalid Authorization header", http.StatusUnauthorized)
 			return
 		}
+
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
 		token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 			return jwtSecret, nil
 		})
-		if err != nil || !token.Valid {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
+
+		if err != nil {
+			http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
 			return
 		}
 
-		if claims, ok := token.Claims.(*UserClaims); ok {
-			ctx := context.WithValue(r.Context(), "user", claims)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		} else {
+		claims, ok := token.Claims.(*UserClaims)
+		if !ok || !token.Valid {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
 		}
+
+		// Validate claims (e.g., expiration)
+		if claims.ExpiresAt < time.Now().Unix() {
+			http.Error(w, "Token has expired", http.StatusUnauthorized)
+			return
+		}
+
+		// Inject claims into the request context
+		ctx := context.WithValue(r.Context(), "user", claims)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

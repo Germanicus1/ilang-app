@@ -5,6 +5,7 @@
 # Custom Additions
 lenslocked
  *.http
+ Config_test.go
 
 ### Go ###
 # If you prefer the allow list template instead of the deny list, see community template:
@@ -247,3 +248,4 @@ $RECYCLE.BIN/
 
 # Our .env files.
 .env
+backend.env
