@@ -59,8 +59,9 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Inject claims into the request context
-		ctx := context.WithValue(r.Context(), "user", claims)
+		// Inject user_id and full claims into the request context
+		ctx := context.WithValue(r.Context(), "user_id", claims.Sub) // Only user_id
+		ctx = context.WithValue(ctx, "user_claims", claims)         // Full claims
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }
