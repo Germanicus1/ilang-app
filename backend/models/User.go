@@ -1,11 +1,10 @@
 package models
 
-type CreateUserRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
+import "time"
 
-type CreateUserResponse struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
+type User struct {
+    ID        string    `json:"id"`
+    Email     string    `json:"email"`
+    CreatedAt time.Time `json:"created_at"`
+    Role      string    `json:"role"`
 }
