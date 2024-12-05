@@ -9,18 +9,18 @@ import (
 	"strings"
 )
 
-// Handlers:
-// GamesHandler - Get a list of all games [GET]
-// CreateGameHandler - Create a Game [POST]
-// GetGameHandler - Fetch a game by ID [GET]
-// UpdateGameHandler - update a game [PUT]
-// TODO: DELETE /games/{id}
-// UpdateGameHandler - PUT /games/{id} for updating
-
 // GamesHandler retrieves a list of games from the Supabase database
 func GamesHandler(w http.ResponseWriter, r *http.Request) {
+	// Extract user_id from context
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+
 	// Fetch games from the Supabase service
-	games, err := services.FetchGames()
+	games, err := services.FetchGames(userID)
 	if err != nil {
 		log.Println("Error fetching games:", err)
 		http.Error(w, "Failed to fetch games", http.StatusInternalServerError)
@@ -55,6 +55,12 @@ func CreateGameHandler(w http.ResponseWriter, r *http.Request) {
 
 // GetGameHandler retrieves a single game by its ID from the Supabase database
 func GetGameHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Extract the game ID from the URL path
 	pathParts := strings.Split(r.URL.Path, "/")
 	if len(pathParts) < 3 {
@@ -63,7 +69,7 @@ func GetGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID := pathParts[2]
 	// Call the service to fetch the game
-	game, err := services.FetchGameByID(gameID)
+	game, err := services.FetchGameByID(gameID, userID)
 	if err != nil {
 		log.Printf("Error fetching game: %v\n", err)
 		http.Error(w, "Failed to fetch game", http.StatusInternalServerError)
@@ -84,6 +90,13 @@ func UpdateGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID := pathParts[2]
 
+	// Retrieve user_id from context
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Parse the request body
 	var req models.GameRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -92,7 +105,7 @@ func UpdateGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Call the service to update the game
-	updatedGame, err := services.UpdateGameByID(gameID, req)
+	updatedGame, err := services.UpdateGameByID(gameID, userID, req)
 	if err != nil {
 		log.Printf("Error updating game: %v\n", err)
 		http.Error(w, "Failed to update game", http.StatusInternalServerError)
@@ -114,8 +127,15 @@ func DeleteGameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	gameID := pathParts[2]
 
+	// Retrieve user_id from context
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	// Call the service to delete the game
-	err := services.DeleteGameByID(gameID)
+	err := services.DeleteGameByID(gameID, userID)
 	if err != nil {
 		log.Printf("Error deleting game: %v\n", err)
 		http.Error(w, "Failed to delete game", http.StatusInternalServerError)

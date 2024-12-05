@@ -14,7 +14,7 @@ type Config struct {
 }
 
 func LoadConfig() Config {
-    err := godotenv.Load("../../backend/backend.env")
+    err := godotenv.Load()
     if err != nil {
         log.Fatal("Error loading .env file", err)
     }

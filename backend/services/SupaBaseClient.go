@@ -1,9 +1,8 @@
 package services
 
 import (
-	"log"
-
 	"backend/config"
+	"log"
 
 	"github.com/nedpals/supabase-go"
 )

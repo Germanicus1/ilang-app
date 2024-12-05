@@ -1,0 +1,21 @@
+# Create user
+curl -X POST 'https://selzofrhnkglokruymgh.supabase.co/auth/v1/signup' \
+-H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlbHpvZnJobmtnbG9rcnV5bWdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzIyNzA5ODAsImV4cCI6MjA0Nzg0Njk4MH0.FE0h8ynCGrsgYDbvsjLf3WvuSLH3ukeaCVaMrImn1es" \
+-H "Content-Type: application/json" \
+-d '{
+  "email": "peter+02@kerschbaumer.es",
+  "password": "newpassword123"
+}' | jq .
+
+
+  "id": "68fd2afb-b74c-40b9-90b6-5f4df333c20f",
+
+
+# Login user
+curl -X POST 'https://selzofrhnkglokruymgh.supabase.co/auth/v1/token?grant_type=password' \
+-H "apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlbHpvZnJobmtnbG9rcnV5bWdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzIyNzA5ODAsImV4cCI6MjA0Nzg0Njk4MH0.FE0h8ynCGrsgYDbvsjLf3WvuSLH3ukeaCVaMrImn1es" \
+-H "Content-Type: application/json" \
+-d '{
+  "email": "peter+02@kerschbaumer.es",
+  "password": "newpassword123"
+}' | jq .

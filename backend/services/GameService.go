@@ -13,10 +13,11 @@ import (
 )
 
 // FetchGames retrieves a list of games from the Supabase database
-func FetchGames() ([]models.Game, error) {
+func FetchGames(userID string) ([]models.Game, error) {
 	cfg := config.LoadConfig()
-	// Define the Supabase REST API URL for the games table
-	url := fmt.Sprintf("%s/rest/v1/games", cfg.SupabaseURL)
+	// Define the Supabase REST API URL for the games table for a specific user
+	url := fmt.Sprintf("%s/rest/v1/games?user_id=eq.%s", cfg.SupabaseURL, userID)
+
 	// Create a new HTTP request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -121,10 +122,10 @@ func CreateGame(title, description, subjectID string, difficulty int) (models.Ga
 }
 
 // FetchGameByID retrieves a single game by its ID from the Supabase database
-func FetchGameByID(gameID string) (models.Game, error) {
+func FetchGameByID(gameID string, userID string) (models.Game, error) {
 	cfg := config.LoadConfig()
 	// Define the Supabase REST API URL for the games table
-	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s", cfg.SupabaseURL, gameID)
+	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s&user_id=eq.%s", cfg.SupabaseURL, gameID, userID)
 	// Create a new HTTP request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -156,17 +157,17 @@ func FetchGameByID(gameID string) (models.Game, error) {
 	}
 	// Ensure the game exists
 	if len(games) == 0 {
-		return models.Game{}, errors.New("game not found")
+		return models.Game{}, errors.New("game not found or not owned by user")
 	}
 	return games[0], nil
 }
 
 // UpdateGameByID updates a game in the Supabase database by its ID
-func UpdateGameByID(gameID string, updateData models.GameRequest) (models.Game, error) {
+func UpdateGameByID(gameID string, userID string, updateData models.GameRequest) (models.Game, error) {
 	cfg := config.LoadConfig()
 
 	// Define the Supabase REST API URL for the games table
-	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s", cfg.SupabaseURL, gameID)
+	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s&user_id=eq.%s", cfg.SupabaseURL, gameID, userID)
 
 	// Marshal the update data into JSON
 	body, err := json.Marshal(updateData)
@@ -219,11 +220,11 @@ func UpdateGameByID(gameID string, updateData models.GameRequest) (models.Game, 
 }
 
 // DeleteGameByID deletes a game by its ID from the Supabase database
-func DeleteGameByID(gameID string) error {
+func DeleteGameByID(gameID string, userID string) error {
 	cfg := config.LoadConfig()
 
 	// Define the Supabase REST API URL for the games table
-	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s", cfg.SupabaseURL, gameID)
+	url := fmt.Sprintf("%s/rest/v1/games?id=eq.%s&user_id=eq.%s", cfg.SupabaseURL, gameID, userID)
 
 	// Create a new HTTP request
 	req, err := http.NewRequest("DELETE", url, nil)
@@ -244,8 +245,8 @@ func DeleteGameByID(gameID string) error {
 	defer resp.Body.Close()
 
 	// Check for non-200 status codes
-	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("failed to delete game, status code: %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return errors.New("failed to delete game from Supabase")
 	}
 
 	return nil
