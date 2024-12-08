@@ -9,9 +9,10 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
-// Structs for request and response
+// Common structs for requests and responses
 type CreateUserRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -22,278 +23,213 @@ type SupabaseUser struct {
 	Email string `json:"email"`
 }
 
-type SupabaseAuthResponse struct {
-	User SupabaseUser `json:"user"`
+type UpdateUserRequest struct {
+	Email string `json:"email,omitempty"`
+	Role  string `json:"role,omitempty"`
 }
 
-type SupabaseDeleteResponse struct {
-	Data  struct {
-		User map[string]interface{} `json:"user"`
-	} `json:"data"`
-	Error *SupabaseError `json:"error"`
-}
-
-type SupabaseError struct {
-	Message string `json:"message"`
-}
-
-// CreateUserHandler handles user creation
-func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
-	// Handle preflight requests (CORS)
-	if r.Method == http.MethodOptions {
-		handlePreflight(w)
-		return
-	}
-
-	// Validate request method
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Parse the request body
-	req, err := parseRequestBody(r)
-	if err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
-		return
-	}
-
-	// Call Supabase to create the user
-	user, err := createSupabaseUser(req)
-	if err != nil {
-		http.Error(w, "Failed to create user: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Respond with user details
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
-}
-
-// handlePreflight handles CORS preflight requests
+// Utility functions for CORS and request parsing
 func handlePreflight(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, PUT, PATCH, GET, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 	w.WriteHeader(http.StatusOK)
 }
 
-// parseRequestBody parses the request body into CreateUserRequest
-func parseRequestBody(r *http.Request) (CreateUserRequest, error) {
-	var req CreateUserRequest
+func parseRequestBody[T any](r *http.Request) (T, error) {
+	var req T
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		return req, fmt.Errorf("failed to read request body: %w", err)
 	}
 	defer r.Body.Close()
 
-	fmt.Println("Request Body:", string(bodyBytes))
-	err = json.Unmarshal(bodyBytes, &req)
-	if err != nil {
+	if err := json.Unmarshal(bodyBytes, &req); err != nil {
 		return req, fmt.Errorf("failed to parse JSON: %w", err)
 	}
 	return req, nil
 }
 
-// createSupabaseUser creates a user in Supabase Auth
-func createSupabaseUser(req CreateUserRequest) (SupabaseUser, error) {
-	authURL := fmt.Sprintf("%s/auth/v1/signup", os.Getenv("SUPABASE_URL"))
-	apiKey := os.Getenv("SUPABASE_KEY")
-
-	payload, _ := json.Marshal(req)
-	httpReq, err := http.NewRequest("POST", authURL, bytes.NewBuffer(payload))
+// Supabase API helpers
+func callSupabaseAPI(method, url string, payload interface{}, headers map[string]string) (*http.Response, error) {
+	var body io.Reader
+	if payload != nil {
+		data, err := json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		}
+		body = bytes.NewBuffer(data)
+	}
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
-		return SupabaseUser{}, fmt.Errorf("failed to create HTTP request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("apikey", apiKey)
-
-	client := &http.Client{}
-	resp, err := client.Do(httpReq)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+	resp, err := client.Do(req)
 	if err != nil {
-		return SupabaseUser{}, fmt.Errorf("failed to contact Supabase: %w", err)
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	fmt.Println("Supabase Response:", string(bodyBytes))
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return SupabaseUser{}, fmt.Errorf("supabase error: %s", resp.Status)
+		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
-	var supabaseResp SupabaseAuthResponse
-	err = json.Unmarshal(bodyBytes, &supabaseResp)
-	if err != nil {
-		return SupabaseUser{}, fmt.Errorf("failed to parse Supabase response: %w", err)
-	}
-
-	return supabaseResp.User, nil
+	return resp, nil
 }
 
-func GetUserByIDHandler(w http.ResponseWriter, r *http.Request) {
-    userID := r.PathValue("id")
-    if userID == "" {
-        http.Error(w, "User ID is required", http.StatusBadRequest)
+// CreateUserHandler
+func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
+    // Handle preflight (CORS)
+    if r.Method == http.MethodOptions {
+        handlePreflight(w)
         return
     }
 
-    // Query the database for the user
-    var users []models.User
-    err := services.Supabase.DB.From("users").Select("*").Eq("id", userID).Execute(&users)
-    if err != nil {
-        http.Error(w, "Failed to retrieve user: "+err.Error(), http.StatusInternalServerError)
-        return
-    }
-
-    if len(users) == 0 {
-        http.Error(w, "User not found", http.StatusNotFound)
-        return
-    }
-
-    // Return the user as JSON
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(users[0])
-}
-
-type UpdateUserRequest struct {
-    Email string `json:"email,omitempty"`
-    Role  string `json:"role,omitempty"`
-}
-
-func UpdateUserByIDHandler(w http.ResponseWriter, r *http.Request) {
-    userID := r.PathValue("id")
-    if userID == "" {
-        http.Error(w, "User ID is required", http.StatusBadRequest)
-        return
-    }
-
-    var updateReq UpdateUserRequest
-    err := json.NewDecoder(r.Body).Decode(&updateReq)
+    // Parse request payload
+    req, err := parseRequestBody[CreateUserRequest](r)
     if err != nil {
         http.Error(w, "Invalid request payload", http.StatusBadRequest)
         return
     }
 
-    if updateReq.Email == "" && updateReq.Role == "" {
-        http.Error(w, "No fields to update", http.StatusBadRequest)
+    // Prepare Supabase API call
+    authURL := fmt.Sprintf("%s/auth/v1/signup", os.Getenv("SUPABASE_URL"))
+    headers := map[string]string{
+        "Content-Type": "application/json",
+        "apikey":       os.Getenv("SUPABASE_KEY"),
+    }
+
+    // Call Supabase API
+    resp, err := callSupabaseAPI(http.MethodPost, authURL, req, headers)
+    if err != nil || (resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated) {
+        http.Error(w, "Failed to create user", http.StatusInternalServerError)
         return
     }
+    defer resp.Body.Close()
 
-    // Prepare the update payload for public.users
-    updatePayload := map[string]interface{}{}
-    if updateReq.Email != "" {
-        updatePayload["email"] = updateReq.Email
-    }
-    if updateReq.Role != "" {
-        updatePayload["role"] = updateReq.Role
-    }
-
-    // Update public.users
-    var updatedUsers []map[string]interface{}
-    err = services.Supabase.DB.From("users").Update(updatePayload).Eq("id", userID).Execute(&updatedUsers)
+    // Read the entire response body once
+    bodyBytes, err := io.ReadAll(resp.Body)
     if err != nil {
-        http.Error(w, "Failed to update user in public.users: "+err.Error(), http.StatusInternalServerError)
+        http.Error(w, "Failed to read response body", http.StatusInternalServerError)
         return
     }
 
-    if len(updatedUsers) == 0 {
-        http.Error(w, "User not found in public.users", http.StatusNotFound)
+    // Parse the response body
+    var supabaseResp struct {
+        AccessToken  string       `json:"access_token"`
+        TokenType    string       `json:"token_type"`
+        ExpiresIn    int          `json:"expires_in"`
+        ExpiresAt    int64        `json:"expires_at"`
+        RefreshToken string       `json:"refresh_token"`
+        User         SupabaseUser `json:"user"`
+    }
+
+    err = json.Unmarshal(bodyBytes, &supabaseResp)
+    if err != nil {
+        http.Error(w, "Failed to parse response", http.StatusInternalServerError)
         return
     }
 
-    // Update auth.users if email has changed
-    if updateReq.Email != "" {
-        authPayload := map[string]interface{}{
-            "email": updateReq.Email,
-        }
-
-        authURL := fmt.Sprintf("%s/auth/v1/admin/users/%s", os.Getenv("SUPABASE_URL"), userID)
-        reqBody, _ := json.Marshal(authPayload)
-
-        authReq, _ := http.NewRequest("PUT", authURL, bytes.NewBuffer(reqBody))
-        authReq.Header.Set("Content-Type", "application/json")
-        authReq.Header.Set("apikey", os.Getenv("SUPABASE_KEY"))
-        authReq.Header.Set("Authorization", "Bearer "+os.Getenv("SERVICE_ROLE_KEY"))
-
-        client := &http.Client{}
-        resp, err := client.Do(authReq)
-        if err != nil || resp.StatusCode != http.StatusOK {
-            http.Error(w, "Failed to update user in auth.users: "+err.Error(), http.StatusInternalServerError)
-            return
-        }
-    }
-
-    // Respond with the updated user
+    // Respond with user details
     w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusOK)
-    json.NewEncoder(w).Encode(updatedUsers[0])
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(supabaseResp.User)
+}
+
+func GetUserByIDHandler(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("id")
+	if userID == "" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
+		return
+	}
+
+	var users []models.User
+	err := services.Supabase.DB.From("users").Select("*").Eq("id", userID).Execute(&users)
+	if err != nil || len(users) == 0 {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users[0])
+}
+
+func UpdateUserByIDHandler(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("id")
+	if userID == "" {
+		http.Error(w, "User ID is required", http.StatusBadRequest)
+		return
+	}
+
+	updateReq, err := parseRequestBody[UpdateUserRequest](r)
+	if err != nil || (updateReq.Email == "" && updateReq.Role == "") {
+		http.Error(w, "No valid fields to update", http.StatusBadRequest)
+		return
+	}
+
+	updatePayload := map[string]interface{}{}
+	if updateReq.Email != "" {
+		updatePayload["email"] = updateReq.Email
+	}
+	if updateReq.Role != "" {
+		updatePayload["role"] = updateReq.Role
+	}
+
+	var updatedUsers []map[string]interface{}
+	err = services.Supabase.DB.From("users").Update(updatePayload).Eq("id", userID).Execute(&updatedUsers)
+	if err != nil || len(updatedUsers) == 0 {
+		http.Error(w, "Failed to update user", http.StatusInternalServerError)
+		return
+	}
+
+	if updateReq.Email != "" {
+		authURL := fmt.Sprintf("%s/auth/v1/admin/users/%s", os.Getenv("SUPABASE_URL"), userID)
+		headers := map[string]string{
+			"Content-Type":  "application/json",
+			"apikey":        os.Getenv("SUPABASE_KEY"),
+			"Authorization": "Bearer " + os.Getenv("SERVICE_ROLE_KEY"),
+		}
+		_, err := callSupabaseAPI(http.MethodPut, authURL, map[string]string{"email": updateReq.Email}, headers)
+		if err != nil {
+			http.Error(w, "Failed to update auth.users", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(updatedUsers[0])
 }
 
 func DeleteUserByIDHandler(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("id")
+	// Extract the {id} from the URL path
+	userID := r.URL.Path[len("/users/"):] // Extract the part of the path after "/users/"
 	if userID == "" {
 		http.Error(w, "User ID is required", http.StatusBadRequest)
 		return
 	}
 
 	// Step 1: Delete from public.users
-	var deletedUsers []map[string]interface{}
-	err := services.Supabase.DB.From("users").Delete().Eq("id", userID).Execute(&deletedUsers)
+	err := services.Supabase.DB.From("users").Delete().Eq("id", userID).Execute(nil)
 	if err != nil {
-		http.Error(w, "Failed to delete user from public.users: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to delete user", http.StatusInternalServerError)
 		return
 	}
-
-	// if len(deletedUsers) == 0 {
-	// 	http.Error(w, "User not found in public.users", http.StatusNotFound)
-	// 	return
-	// }
 
 	// Step 2: Delete from auth.users using Supabase Admin API
-	adminDeleteUser(w, userID)
-}
-
-func adminDeleteUser(w http.ResponseWriter, userID string) {
 	authURL := fmt.Sprintf("%s/auth/v1/admin/users/%s", os.Getenv("SUPABASE_URL"), userID)
-
-	authReq, _ := http.NewRequest("DELETE", authURL, nil)
-	authReq.Header.Set("Authorization", "Bearer "+os.Getenv("SERVICE_ROLE_KEY"))
-	authReq.Header.Set("apikey", os.Getenv("SERVICE_ROLE_KEY"))
-
-	client := &http.Client{}
-	resp, err := client.Do(authReq)
+	headers := map[string]string{
+		"apikey":        os.Getenv("SERVICE_ROLE_KEY"),
+		"Authorization": "Bearer " + os.Getenv("SERVICE_ROLE_KEY"),
+	}
+	_, err = callSupabaseAPI(http.MethodDelete, authURL, nil, headers)
 	if err != nil {
-		http.Error(w, "Failed to delete user from auth.users: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Log for debugging
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	fmt.Printf("Auth API Response Body: %s\n", string(bodyBytes))
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		http.Error(w, fmt.Sprintf("Failed to delete user from auth.users: %s", resp.Status), resp.StatusCode)
+		http.Error(w, "Failed to delete auth user", http.StatusInternalServerError)
 		return
 	}
 
-		// Parse the response body
-	var supabaseResp SupabaseDeleteResponse
-	err = json.Unmarshal(bodyBytes, &supabaseResp)
-	if err != nil {
-		http.Error(w, "Failed to parse response from auth.users: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Check for errors in the response
-	if supabaseResp.Error != nil {
-		http.Error(w, "Supabase error: "+supabaseResp.Error.Message, http.StatusInternalServerError)
-		return
-	}
-
-	// Log the deleted user's information
-	fmt.Printf("Deleted User: %+v\n", supabaseResp.Data.User)
+	// Respond with No Content status
+	w.WriteHeader(http.StatusNoContent)
 }
