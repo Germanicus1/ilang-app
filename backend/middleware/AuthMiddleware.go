@@ -1,67 +1,65 @@
 package middleware
 
 import (
-	"backend/config"
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
-	"time"
 
 	"github.com/golang-jwt/jwt/v4"
 )
 
-var cfg = config.LoadConfig()
-var jwtSecret = cfg.JWTSecret
+type contextKey string
 
-type UserClaims struct {
-	Sub       string   `json:"sub"`       // User ID
-	Role      []string `json:"Role"`      // Array of roles
-	GivenName string   `json:"GivenName"` // First name
-	Surname   string   `json:"Surname"`   // Last name
-	Email     string   `json:"Email"`     // User email
-	jwt.StandardClaims
-}
+const (
+	UserIDContextKey contextKey = "userID"
+	RoleContextKey   contextKey = "role"
+)
 
-
-// AuthMiddleware validates the JWT and injects user claims into the request context
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+// Middleware to validate JWT
+func ValidateJWT(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			http.Error(w, "Missing or invalid Authorization header", http.StatusUnauthorized)
+		if authHeader == "" {
+			http.Error(w, "Authorization header missing", http.StatusUnauthorized)
 			return
 		}
 
+		// Extract the token from the "Bearer <token>" format
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		if tokenString == authHeader {
+			http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
+			return
+		}
 
-		token, err := jwt.ParseWithClaims(tokenString, &UserClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Parse and validate the token
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			// Ensure the signing method is HMAC
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			return jwtSecret, nil
+			// Use the Supabase JWT secret
+			return []byte(os.Getenv("SUPABASE_JWT_SECRET")), nil
 		})
-
-		if err != nil {
-			http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
+		if err != nil || !token.Valid {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
 		}
 
-		claims, ok := token.Claims.(*UserClaims)
-		if !ok || !token.Valid {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		// Extract claims
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			http.Error(w, "Invalid token claims", http.StatusUnauthorized)
 			return
 		}
 
-		// Validate claims (e.g., expiration)
-		if claims.ExpiresAt < time.Now().Unix() {
-			http.Error(w, "Token has expired", http.StatusUnauthorized)
-			return
-		}
+		userID := claims["sub"].(string)
+		role := claims["role"].(string)
 
-		// Inject user_id and full claims into the request context
-		ctx := context.WithValue(r.Context(), "user_id", claims.Sub) // Only user_id
-		ctx = context.WithValue(ctx, "user_claims", claims)         // Full claims
+		// Add userID and role to request context
+		ctx := context.WithValue(r.Context(), UserIDContextKey, userID)
+		ctx = context.WithValue(ctx, RoleContextKey, role)
 		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 	}
-}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"backend/config"
+	"backend/middleware"
 	"backend/routes"
 	"backend/services"
 )
@@ -12,13 +13,20 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.LoadConfig()
-	// fmt.Println(cfg)
-	// Initialize Supabase
 	services.InitSupabase(cfg)
 
-	// Set up the HTTP server and routes
+	// Create a base multiplexer
 	mux := http.NewServeMux()
-	routes.RegisterRoutes(mux)
+
+	// Register public routes (no middleware)
+	routes.RegisterPublicRoutes(mux)
+
+	// Create a sub-mux for secured routes
+	securedMux := http.NewServeMux()
+	routes.RegisterSecuredRoutes(securedMux)
+
+	// Wrap the secured mux in middleware
+	mux.Handle("/users/", middleware.ValidateJWT(securedMux))
 
 	// Start the server
 	log.Println("Server is running on port 8080")
@@ -27,5 +35,3 @@ func main() {
 		log.Fatalf("Failed to start server: %v", err)
 	}
 }
-
-

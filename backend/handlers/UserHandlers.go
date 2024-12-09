@@ -139,7 +139,7 @@ func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetUserByIDHandler(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("id")
+	userID := r.PathValue("id")
 	if userID == "" {
 		http.Error(w, "User ID is required", http.StatusBadRequest)
 		return
@@ -157,7 +157,7 @@ func GetUserByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateUserByIDHandler(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("id")
+	userID := r.PathValue("id")
 	if userID == "" {
 		http.Error(w, "User ID is required", http.StatusBadRequest)
 		return
@@ -204,8 +204,8 @@ func UpdateUserByIDHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func DeleteUserByIDHandler(w http.ResponseWriter, r *http.Request) {
-	// Extract the {id} from the URL path
-	userID := r.URL.Path[len("/users/"):] // Extract the part of the path after "/users/"
+	// Extract {id} from the URL
+	userID := r.PathValue("id")
 	if userID == "" {
 		http.Error(w, "User ID is required", http.StatusBadRequest)
 		return
@@ -232,4 +232,55 @@ func DeleteUserByIDHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Respond with No Content status
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func LoginHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var credentials struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	authURL := fmt.Sprintf("%s/auth/v1/token?grant_type=password", os.Getenv("SUPABASE_URL"))
+	headers := map[string]string{
+		"Content-Type": "application/json",
+		"apikey":       os.Getenv("SUPABASE_KEY"),
+	}
+	resp, err := callSupabaseAPI(http.MethodPost, authURL, credentials, headers)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+	defer resp.Body.Close()
+
+	var supabaseResp struct {
+		AccessToken string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&supabaseResp); err != nil {
+		http.Error(w, "Failed to parse response", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(supabaseResp)
+}
+
+func LogoutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// JWTs are stateless, so logout is handled client-side (e.g., delete token).
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "Logged out successfully"})
 }
