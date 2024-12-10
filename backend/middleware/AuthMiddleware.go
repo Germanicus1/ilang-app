@@ -1,10 +1,10 @@
 package middleware
 
 import (
+	"backend/config"
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -19,6 +19,8 @@ const (
 
 // Middleware to validate JWT
 func ValidateJWT(next http.Handler) http.Handler {
+	cfg := config.LoadConfig() // loading .env
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
@@ -35,13 +37,16 @@ func ValidateJWT(next http.Handler) http.Handler {
 
 		// Parse and validate the token
 		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-			// Ensure the signing method is HMAC
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 			}
-			// Use the Supabase JWT secret
-			return []byte(os.Getenv("SUPABASE_JWT_SECRET")), nil
+			secret := cfg.JWTSecret
+			if secret == "" {
+				return nil, fmt.Errorf("JWT secret is missing")
+			}
+			return []byte(secret), nil
 		})
+
 		if err != nil || !token.Valid {
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
@@ -54,12 +59,23 @@ func ValidateJWT(next http.Handler) http.Handler {
 			return
 		}
 
-		userID := claims["sub"].(string)
-		role := claims["role"].(string)
+		userID, ok := claims["sub"].(string)
+		if !ok || userID == "" {
+			http.Error(w, "Invalid token: 'sub' claim is missing", http.StatusUnauthorized)
+			return
+		}
+
+		role, ok := claims["role"].(string)
+		if !ok || role == "" {
+			http.Error(w, "Invalid token: 'role' claim is missing", http.StatusUnauthorized)
+			return
+		}
 
 		// Add userID and role to request context
 		ctx := context.WithValue(r.Context(), UserIDContextKey, userID)
 		ctx = context.WithValue(ctx, RoleContextKey, role)
+
+		// Proceed to the next handler
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-	}
+}

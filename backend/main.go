@@ -17,7 +17,6 @@ func main() {
 
 	// Create a base multiplexer
 	mux := http.NewServeMux()
-
 	// Register public routes (no middleware)
 	routes.RegisterPublicRoutes(mux)
 
