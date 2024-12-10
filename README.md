@@ -67,7 +67,7 @@ A Golang-based backend for managing users and authentication with Supabase. This
 
 |Method|Endpoint|Description|
 |---|---|---|
-|POST|`/users`|Create a user|
+|POST|`/users`|Create a user. Creates on public.users and auth.users|
 |POST|`/login`|User login|
 |POST|`/logout`|User logout (optional)|
 
@@ -76,8 +76,8 @@ A Golang-based backend for managing users and authentication with Supabase. This
 |Method|Endpoint|Description|
 |---|---|---|
 |GET|`/users/{id}`|Get user by ID|
-|PATCH|`/users/{id}`|Update user by ID|
-|DELETE|`/users/{id}`|Delete user by ID|
+|PATCH|`/users/{id}`|Update user by ID. Patches on public.users and auth.users|
+|DELETE|`/users/{id}`|Delete user by ID. Deletes on public.users and auth.users|
 
 ---
 
