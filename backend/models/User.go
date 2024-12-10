@@ -33,3 +33,7 @@ type User struct {
 	Role      string     `json:"role"`
 }
 
+type SupabaseUser struct {
+	ID    string `json:"id"`
+	Email string `json:"email"`
+}

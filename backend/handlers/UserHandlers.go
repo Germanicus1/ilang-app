@@ -3,6 +3,7 @@ package handlers
 import (
 	"backend/models"
 	"backend/services"
+	"backend/utils"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -81,62 +82,22 @@ func callSupabaseAPI(method, url string, payload interface{}, headers map[string
 
 // CreateUserHandler
 func CreateUserHandler(w http.ResponseWriter, r *http.Request) {
-    // Handle preflight (CORS)
-    if r.Method == http.MethodOptions {
-        handlePreflight(w)
-        return
-    }
-
-    // Parse request payload
     req, err := parseRequestBody[CreateUserRequest](r)
     if err != nil {
-        http.Error(w, "Invalid request payload", http.StatusBadRequest)
+        utils.WriteError(w, http.StatusBadRequest, "Invalid request payload")
         return
     }
 
-    // Prepare Supabase API call
-    authURL := fmt.Sprintf("%s/auth/v1/signup", os.Getenv("SUPABASE_URL"))
-    headers := map[string]string{
-        "Content-Type": "application/json",
-        "apikey":       os.Getenv("SUPABASE_KEY"),
-    }
-
-    // Call Supabase API
-    resp, err := callSupabaseAPI(http.MethodPost, authURL, req, headers)
-    if err != nil || (resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated) {
-        http.Error(w, "Failed to create user", http.StatusInternalServerError)
-        return
-    }
-    defer resp.Body.Close()
-
-    // Read the entire response body once
-    bodyBytes, err := io.ReadAll(resp.Body)
+    userService := services.NewUserService()
+    user, err := userService.CreateUser(req.Email, req.Password)
     if err != nil {
-        http.Error(w, "Failed to read response body", http.StatusInternalServerError)
+        utils.WriteError(w, http.StatusInternalServerError, "Failed to create user")
         return
     }
 
-    // Parse the response body
-    var supabaseResp struct {
-        AccessToken  string       `json:"access_token"`
-        TokenType    string       `json:"token_type"`
-        ExpiresIn    int          `json:"expires_in"`
-        ExpiresAt    int64        `json:"expires_at"`
-        RefreshToken string       `json:"refresh_token"`
-        User         SupabaseUser `json:"user"`
-    }
-
-    err = json.Unmarshal(bodyBytes, &supabaseResp)
-    if err != nil {
-        http.Error(w, "Failed to parse response", http.StatusInternalServerError)
-        return
-    }
-
-    // Respond with user details
-    w.Header().Set("Content-Type", "application/json")
-    w.WriteHeader(http.StatusCreated)
-    json.NewEncoder(w).Encode(supabaseResp.User)
+    utils.WriteJSONResponse(w, http.StatusCreated, user)
 }
+
 
 func GetUserByIDHandler(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("id")
