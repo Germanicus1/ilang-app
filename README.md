@@ -1,187 +1,104 @@
-# iLang Backend
-**STATUS**: NOT RELEASED
+# iLang Backend API
 
-The iLang backend is a RESTful API designed to support a language-learning platform. It provides endpoints for managing games, fetching data, and integrating with a Supabase database.
+A Golang-based backend for managing users and authentication with Supabase. This API supports CRUD operations, JWT-based authentication, and token management. No Supabase tokens are exposed to the client.
 
 ## Features
 
-- **Health Check Endpoint**: Simple endpoint to check if the server is running.
-- **CRUD Operations for Games**:
-  - Fetch all games.
-  - Fetch a specific game by ID.
-  - Create a new game.
-- **Database Integration**: Uses Supabase as the backend database for managing data.
-- **Environment Configurations**: Securely loads configurations such as API keys and database URLs from environment variables.
+- **User Management**: Create, update, retrieve, and delete user accounts.
+- **Authentication**: Supabase-based user authentication with JWT.
+- **Role-Based Authorization**: Secure routes using roles (e.g., admin, user).
+- **Middleware**: Validates JWTs for secured endpoints.
+- **Configuration**: Centralized `.env`-based configuration.
 
 ---
 
-## Endpoints
+## Project Structure
 
-### Summary of CRUD Endpoints
-Current CRUD operations for `games`:
+```TXT
 
-| **Method** | **Endpoint**        | **Description**         |
-|------------|---------------------|-------------------------|
-| `GET`      | `/games`            | Fetch all games         |
-| `GET`      | `/games/{id}`       | Fetch a game by ID      |
-| `POST`     | `/games`            | Create a new game       |
-| `PUT`      | `/games/{id}`       | Update a game by ID     |
-| `DELETE`   | `/games/{id}`       | Delete a game by ID     |
+├── main.go               # Entry point of the application
+├── handlers/             # Contains HTTP handler functions
+│   ├── UserHandlers.go   # Handlers for user-related CRUD operations
+├── middleware/           # Middleware for request validation
+│   ├── AuthMiddleware.go # Middleware to validate JWT tokens
+├── routes/               # Route registration
+│   ├── publicRoutes.go   # Routes accessible without authentication
+│   ├── securedRoutes.go  # Secured routes requiring JWT
+├── config/               # Configuration loading from .env
+│   ├── Config.go         # Handles environment variable loading
 
-
-### Health Check
-- **GET `/health`**
-  - Responds with the server's health status.
-  - **Response**:
-    ```json
-    {
-        "status": "OK",
-        "message": "Server is healthy and running"
-    }
-    ```
-
-### Games
-- **GET `/games`**
-  - Fetches a list of all games.
-  - **Response**:
-    ```json
-    [
-        {
-            "id": "12345",
-            "title": "Game Title",
-            "description": "Game description",
-            "subject_id": "550e8400-e29b-41d4-a716-446655440000",
-            "difficulty_level": 2,
-            "created_at": "2024-01-01T00:00:00Z"
-        }
-    ]
-    ```
-
-- **POST `/games`**
-  - Creates a new game.
-  - **Request**:
-    ```json
-    {
-        "title": "New Game",
-        "description": "A fun new game",
-        "subject_id": "550e8400-e29b-41d4-a716-446655440000",
-        "difficulty_level": 2
-    }
-    ```
-  - **Response**:
-    ```json
-    {
-        "id": "67890",
-        "title": "New Game",
-        "description": "A fun new game",
-        "subject_id": "550e8400-e29b-41d4-a716-446655440000",
-        "difficulty_level": 2,
-        "created_at": "2024-01-01T00:00:00Z"
-    }
-    ```
-
-- **GET `/games/{id}`**
-  - Fetches a specific game by its ID.
-  - **Response**:
-    ```json
-    {
-        "id": "12345",
-        "title": "Game Title",
-        "description": "Game description",
-        "subject_id": "550e8400-e29b-41d4-a716-446655440000",
-        "difficulty_level": 2,
-        "created_at": "2024-01-01T00:00:00Z"
-    }
-    ```
-
-- **DELETE `/games/{id}`**
-  - Deletes a specific game by its ID.
-  - **Response**: NONE
+```
 
 ---
 
-## Installation
+## Setup Instructions
 
 ### Prerequisites
-- [Go](https://golang.org/) 1.22 or higher
-- Supabase account and project set up
-- Environment variables configured in a `.env` file:
-  ```env
-  SUPABASE_URL=https://your-supabase-url.supabase.co
-  SUPABASE_KEY=your-supabase-key
-```
 
-### Steps
+- [Golang](https://go.dev/) (v1.22 or higher)
+- [Supabase](https://supabase.com/) account with a configured project
+- `.env` file with the following keys:
 
-1.  Clone the repository:
-
-    ```bash
-    git clone https://github.com/yourusername/ilang-backend.git
-    cd ilang-backend
-    ```
-
-2.  Install dependencies:
-
-    ```bash
-    go mod tidy
-    ```
-
-3.  Run the server:
-
-    ```bash
-    go run main.go
-    ```
+    `SUPABASE_URL=<Your Supabase URL> SUPABASE_KEY=<Your Supabase Public Key> JWT_SECRET=<Your Supabase JWT Secret> SERVICE_ROLE_KEY=<Your Supabase Service Role Key>`
 
 
-* * *
+### Installation
 
-Project Structure
------------------
+1. Clone the repository:
 
-```bash
-.
-├── config/                # Configuration handling
-│   └── config.go
-├── handlers/              # HTTP route handlers
-│   ├── GamesHandler.go
-│   └── HealthHandler.go
-├── models/                # Data models
-│   └── Game.go
-├── services/              # Business logic and Supabase integration
-│   └── GameService.go
-├── main.go                # Entry point for the application
-├── .env                   # Environment variables (not included in Git)
-└── go.mod                 # Go module file
-```
+    `git clone https://github.com/<your-repo>.git cd ilang-backend`
 
-* * *
+2. Install dependencies:
 
-Tech Stack
-----------
+    `go mod tidy`
 
-*   **Language**: Go
-*   **Database**: Supabase (PostgreSQL)
-*   **HTTP Framework**: Built-in `net/http` package
+3. Run the server:
 
-* * *
+    `go run main.go`
 
-Future Improvements
--------------------
+4. Server runs at `http://localhost:8080`.
 
-*   Implement `PUT /games/{id}` and `DELETE /games/{id}` endpoints to complete CRUD operations.
-*   Add authentication middleware for secured access.
-*   Enhance error handling for better debugging and user feedback.
-*   Expand the API to support additional features like game analytics and recommendations.
 
-* * *
+---
 
-License
--------
+## API Endpoints
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+### Public Routes
 
-### **What’s Next?**
-- Build more end points
-- Build Frontend components
-- Integrate frontend with backend and Supabase.
-- Develop and test games.
+|Method|Endpoint|Description|
+|---|---|---|
+|POST|`/users`|Create a user|
+|POST|`/login`|User login|
+|POST|`/logout`|User logout (optional)|
+
+### Secured Routes
+
+|Method|Endpoint|Description|
+|---|---|---|
+|GET|`/users/{id}`|Get user by ID|
+|PATCH|`/users/{id}`|Update user by ID|
+|DELETE|`/users/{id}`|Delete user by ID|
+
+---
+
+## Development Notes
+
+### Middleware
+
+- **AuthMiddleware**: Validates incoming JWTs using the Supabase secret. Adds `userID` and `role` to the request context.
+
+### Token Refresh
+
+- Needs to be handled by the frontend
+
+---
+
+## Future Enhancements
+
+- Add unit tests for handlers and middleware.
+- Implement more granular roles and permissions.
+- Enhance error handling and logging.
+
+---
+
+Feel free to customize this README as per your project requirements! Let me know if you need further refinements. ​​
